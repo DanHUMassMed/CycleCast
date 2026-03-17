@@ -22,9 +22,9 @@ interface Episode {
   duration: number;
 }
 
-const BACKEND_URL = 'http://192.168.1.59:8001/api';
 
 const EpisodeRow: React.FC<{ ep: Episode, showData: PodcastSearchResult, handlePlayEpisode: (ep: Episode, show: PodcastSearchResult) => void }> = ({ ep, showData, handlePlayEpisode }) => {
+  const { backendUrl } = useAudio();
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -39,7 +39,7 @@ const EpisodeRow: React.FC<{ ep: Episode, showData: PodcastSearchResult, handleP
       setIsDownloading(true);
       // We don't want to use the proxy for downloads, just fetch directly here or proxy? 
       // Proxy handles CORS. So use the proxy!
-      const proxyUrl = `${BACKEND_URL}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
+      const proxyUrl = `${backendUrl}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
       const req = await fetch(proxyUrl);
       if (!req.ok) throw new Error("Fetch failed");
       const blob = await req.blob();
@@ -112,7 +112,7 @@ export const SearchPodcasts: React.FC = () => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
-  const { loadEpisode } = useAudio();
+  const { loadEpisode, backendUrl } = useAudio();
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -122,7 +122,7 @@ export const SearchPodcasts: React.FC = () => {
     setSelectedShow(null);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`${backendUrl}/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
       if (data.feeds) {
         setResults(data.feeds);
@@ -141,7 +141,7 @@ export const SearchPodcasts: React.FC = () => {
     setEpisodes([]);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/episodes?id=${feedId}`);
+      const response = await fetch(`${backendUrl}/episodes?id=${feedId}`);
       const data = await response.json();
       if (data.items) {
         setEpisodes(data.items);
@@ -155,7 +155,7 @@ export const SearchPodcasts: React.FC = () => {
 
   const handlePlayEpisode = (ep: Episode, show: PodcastSearchResult) => {
     // The Audio stream proxy needs the raw enclosure URL
-    const proxyUrl = `${BACKEND_URL}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
+    const proxyUrl = `${backendUrl}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
     
     // Pass metadata and the proxied URL to our singleton AudioContext
     loadEpisode({

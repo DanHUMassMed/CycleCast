@@ -14,12 +14,14 @@ interface AudioContextType {
   skipIntervals: { rewind: number; forward: number };
   skipMode: 'chapter' | 'podcast';
   currentTrackMetadata: { id: number; url: string; title: string; showTitle: string; artworkUrl: string } | null;
+  backendUrl: string;
   loadEpisode: (info: { id: number; url: string; title: string; showTitle: string; artworkUrl: string }) => void;
   cyclePlaybackRate: () => void;
   resetPlaybackRate: () => void;
   updateDefaultPlaybackRate: (rate: number) => void;
   updateSkipIntervals: (rewind: number, forward: number) => void;
   updateSkipMode: (mode: 'chapter' | 'podcast') => void;
+  updateBackendUrl: (url: string) => void;
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
@@ -35,9 +37,6 @@ export const useAudio = () => {
   if (!context) throw new Error('useAudio must be used within AudioProvider');
   return context;
 };
-
-// 89MB proxy file for phase 1 validation as requested in plan
-const AUDIO_URL = 'http://192.168.1.59:8000/Last-Week-in-AI-236.mp3';
 
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -66,24 +65,15 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return (saved as 'chapter' | 'podcast') || 'podcast';
   });
 
+  const [backendUrl, setBackendUrl] = useState<string>(() => {
+    return localStorage.getItem('cyclecast_backend_url') || 'http://192.168.1.59:8001/api';
+  });
+
   useEffect(() => {
-    let objectUrl: string | null = null;
     let audio: HTMLAudioElement | null = null;
 
     const initAudio = async () => {
-      // 1. Check Offline Storage First
-      const localBlob = await getAudioFile('poc-audio');
-      
-      let sourceUrl = AUDIO_URL;
-      if (localBlob) {
-        console.log("AudioContext: Using local IndexedDB Blob for playback!");
-        objectUrl = URL.createObjectURL(localBlob);
-        sourceUrl = objectUrl;
-      } else {
-        console.log("AudioContext: Using remote network stream.");
-      }
-
-      audio = new Audio(sourceUrl);
+      audio = new Audio();
       audioRef.current = audio;
 
       audio.preload = 'metadata';
@@ -124,9 +114,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         audio.pause();
         audio.removeAttribute('src');
         audio.load();
-      }
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
       }
     };
   }, []); // Note: leaving deps empty intentionally to mimic singleton audio init on mount
@@ -244,6 +231,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.setItem('cyclecast_skip_mode', mode);
   }, []);
 
+  const updateBackendUrl = useCallback((url: string) => {
+    setBackendUrl(url);
+    localStorage.setItem('cyclecast_backend_url', url);
+  }, []);
+
   const skipToPrevious = useCallback(async () => {
     if (skipMode === 'podcast') {
       const library = await getLibraryMetadata();
@@ -304,7 +296,8 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <AudioContext.Provider value={{
       isPlaying, currentTime, duration, 
       activePlaybackRate, defaultPlaybackRate, skipIntervals, skipMode,
-      currentTrackMetadata, loadEpisode,
+      backendUrl,
+      currentTrackMetadata, loadEpisode, updateBackendUrl,
       cyclePlaybackRate, resetPlaybackRate, updateDefaultPlaybackRate, 
       updateSkipIntervals, updateSkipMode, play, pause, seek,
       skipToNext, skipToPrevious, audioRef 

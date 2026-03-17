@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Typography,
   Box,
@@ -6,6 +6,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Container,
+  TextField,
 } from '@mui/material';
 import { useAudio } from '../context/AudioContext';
 
@@ -19,7 +20,14 @@ const marks = [
 ];
 
 export const ConfigView: React.FC = () => {
-  const { skipIntervals, updateSkipIntervals, defaultPlaybackRate, updateDefaultPlaybackRate, skipMode, updateSkipMode } = useAudio();
+  const { 
+    skipIntervals, updateSkipIntervals, 
+    defaultPlaybackRate, updateDefaultPlaybackRate, 
+    skipMode, updateSkipMode,
+    backendUrl, updateBackendUrl
+  } = useAudio();
+  
+  const [tempUrl, setTempUrl] = useState(backendUrl);
   
   // Real-time state updates instead of waiting for "Save" since it's a page now
   const handleRewindChange = (_: Event, val: number | number[]) => {
@@ -134,6 +142,27 @@ export const ConfigView: React.FC = () => {
             <ToggleButton value="podcast">Podcast</ToggleButton>
             <ToggleButton value="chapter">Chapter (5m)</ToggleButton>
           </ToggleButtonGroup>
+        </Box>
+        <Box sx={{ pt: 3, mt: 3, borderTop: '1px solid #333' }}>
+          <Typography gutterBottom sx={{ color: '#fff' }}>
+            Backend API URL
+          </Typography>
+          <TextField
+            fullWidth
+            variant="outlined"
+            value={tempUrl}
+            onChange={(e) => setTempUrl(e.target.value)}
+            onBlur={() => updateBackendUrl(tempUrl)}
+            sx={{
+              mt: 1,
+              input: { color: '#fff' },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': { borderColor: '#555' },
+                '&:hover fieldset': { borderColor: '#888' },
+                '&.Mui-focused fieldset': { borderColor: '#1db954' },
+              }
+            }}
+          />
         </Box>
       </Box>
     </Container>
