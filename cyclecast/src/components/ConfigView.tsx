@@ -7,8 +7,14 @@ import {
   ToggleButtonGroup,
   Container,
   TextField,
+  Button,
+  CircularProgress,
+  Snackbar,
+  Alert,
 } from '@mui/material';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { useSettings } from '../context/AudioContext';
+import { useVersionCheck } from '../hooks/useVersionCheck';
 
 const marks = [
   { value: 5, label: '5s' },
@@ -26,6 +32,8 @@ export const ConfigView: React.FC = () => {
     skipMode, updateSkipMode,
     backendUrl, updateBackendUrl
   } = useSettings();
+  const { checking, message, messageType, checkForUpdates, clearMessage } = useVersionCheck();
+  const currentVersion = localStorage.getItem('cyclecast_app_version') || '—';
   
   const [tempUrl, setTempUrl] = useState(backendUrl);
   
@@ -165,7 +173,45 @@ export const ConfigView: React.FC = () => {
             }}
           />
         </Box>
+
+        {/* Version / Update Checker */}
+        <Box sx={{ pt: 3, mt: 3, borderTop: '1px solid #333' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography sx={{ color: '#aaa', fontSize: '0.85rem' }}>
+              App Version
+            </Typography>
+            <Typography sx={{ color: '#fff', fontWeight: 'bold', fontFamily: 'monospace' }}>
+              v{currentVersion}
+            </Typography>
+          </Box>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={checking ? <CircularProgress size={16} sx={{ color: '#1db954' }} /> : <SystemUpdateAltIcon />}
+            disabled={checking}
+            onClick={checkForUpdates}
+            sx={{
+              color: '#1db954',
+              borderColor: '#1db954',
+              '&:hover': { borderColor: '#1ed760', color: '#1ed760', bgcolor: 'rgba(29, 185, 84, 0.08)' },
+              '&:disabled': { borderColor: '#333', color: '#555' },
+            }}
+          >
+            {checking ? 'Checking…' : 'Check for Updates'}
+          </Button>
+        </Box>
       </Box>
+
+      <Snackbar
+        open={!!message}
+        autoHideDuration={5000}
+        onClose={clearMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={clearMessage} severity={messageType ?? 'info'} sx={{ width: '100%' }}>
+          {message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

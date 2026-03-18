@@ -199,7 +199,8 @@ export const BikePlayView: React.FC<BikePlayViewProps> = ({ onExitBikePlay }) =>
             borderRight: '2px solid #333',
             cursor: 'pointer',
             userSelect: 'none',
-            bgcolor: flashZone === 'playpause' ? '#fff' : (isPlaying ? '#111' : '#1a2600'),
+            // bgcolor: flashZone === 'playpause' ? '#fff' : (isPlaying ? '#111' : '#1a2600'),
+            bgcolor: flashZone === 'playpause' ? '#fff' : (isPlaying ?  '#1a2600' : 'transparent'),
             transition: 'background-color 0.1s',
             WebkitTapHighlightColor: 'transparent',
           }}

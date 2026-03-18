@@ -156,7 +156,7 @@ export const HomeView: React.FC = () => {
       }}
     >
       <Typography variant="h4" sx={{ fontWeight: 'bold', mt: 2, mb: 1, px: 2 }}>
-        Home
+        Cycle Cast
       </Typography>
 
       {/* Offline Library Section */}
