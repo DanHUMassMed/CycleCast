@@ -1,2 +1,2 @@
 #!/bin/bash
-uv run python main.py
+nohup uv run python main.py > app.log 2>&1 &

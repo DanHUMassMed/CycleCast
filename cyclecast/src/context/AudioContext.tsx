@@ -66,7 +66,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
 
   const [backendUrl, setBackendUrl] = useState<string>(() => {
-    return localStorage.getItem('cyclecast_backend_url') || 'http://192.168.1.59:8001/api';
+    return localStorage.getItem('cyclecast_backend_url') || 'https://api.cyclecast.higginscompany.com/api';
   });
 
   useEffect(() => {

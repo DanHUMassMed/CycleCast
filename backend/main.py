@@ -131,4 +131,4 @@ if __name__ == "__main__":
     import uvicorn
     # Make sure to run on 0.0.0.0 so the mobile phone testing on 192.168.1.59 can access it
     # lsof -i :8001 -t
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8002, reload=True)
