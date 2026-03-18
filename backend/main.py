@@ -12,9 +12,10 @@ load_dotenv()
 app = FastAPI(title="CycleCast Backend API Proxy")
 
 # Allow requests from the Vite dev server (and the PWA IP)
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,7 +40,7 @@ def get_podcast_index_headers():
         "User-Agent": "CycleCast/1.5"
     }
 
-PODCAST_INDEX_BASE_URL = "https://api.podcastindex.org/api/1.0"
+PODCAST_INDEX_BASE_URL = os.getenv("PODCAST_INDEX_BASE_URL", "https://api.podcastindex.org/api/1.0")
 
 @app.get("/api/search")
 async def search_podcasts(q: str):
@@ -131,4 +132,6 @@ if __name__ == "__main__":
     import uvicorn
     # Make sure to run on 0.0.0.0 so the mobile phone testing on 192.168.1.59 can access it
     # lsof -i :8001 -t
-    uvicorn.run("main:app", host="127.0.0.1", port=8002, reload=True)
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", 8002))
+    uvicorn.run("main:app", host=host, port=port, reload=True)

@@ -8,7 +8,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import SpeedIcon from '@mui/icons-material/Speed';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
-import { useAudio } from '../context/AudioContext';
+import { useSettings } from '../context/AudioContext';
+import { usePlayback } from '../hooks/usePlayback';
 import { useWakeLock } from '../hooks/useWakeLock';
 
 interface BikePlayViewProps {
@@ -17,9 +18,10 @@ interface BikePlayViewProps {
 
 export const BikePlayView: React.FC<BikePlayViewProps> = ({ onExitBikePlay }) => {
   const { 
-    isPlaying, currentTime, duration, skipIntervals, activePlaybackRate, skipMode,
+    isPlaying, currentTime, duration, activePlaybackRate,
     play, pause, seek, cyclePlaybackRate, currentTrackMetadata, skipToNext, skipToPrevious 
-  } = useAudio();
+  } = usePlayback();
+  const { skipIntervals, skipMode } = useSettings();
   
   const [flashZone, setFlashZone] = React.useState<string | null>(null);
   

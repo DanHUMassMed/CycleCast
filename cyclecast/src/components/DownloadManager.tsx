@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import React from 'react';
+import { Box, Typography, Button, CircularProgress, Snackbar, Alert } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OfflinePinIcon from '@mui/icons-material/OfflinePin';
-import { saveAudioFile, deleteAudioFile, checkStorageQuota, getAudioFile } from '../utils/storage';
+import { useEpisodeDownload } from '../hooks/useEpisodeDownload';
+import { formatBytes } from '../utils/format';
 
 interface DownloadManagerProps {
   audioUrl: string;
@@ -12,72 +13,11 @@ interface DownloadManagerProps {
 }
 
 export const DownloadManager: React.FC<DownloadManagerProps> = ({ audioUrl, audioKey, onDownloadStateChange }) => {
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [storageInfo, setStorageInfo] = useState<{usage: number; quota: number}>({ usage: 0, quota: 0 });
-
-  useEffect(() => {
-    // Check initial state
-    const initCheck = async () => {
-      const existing = await getAudioFile(audioKey);
-      const isLocal = !!existing;
-      setIsDownloaded(isLocal);
-      onDownloadStateChange?.(isLocal);
-      
-      const quota = await checkStorageQuota();
-      setStorageInfo(quota);
-    };
-    initCheck();
-  }, [audioKey, onDownloadStateChange]);
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const downloadAudio = async () => {
-    try {
-      setIsDownloading(true);
-      setProgress(10); // Indicate start
-
-      // Using fetch to get the Blob (This might take a while for 89MB)
-      const response = await fetch(audioUrl);
-      if (!response.ok) throw new Error('Network response was not ok');
-      
-      // We don't have accurate progress without ReadableStream, so simulate it
-      setProgress(50);
-      
-      const blob = await response.blob();
-      setProgress(90);
-
-      await saveAudioFile(audioKey, blob);
-      setIsDownloaded(true);
-      onDownloadStateChange?.(true);
-      
-      const quota = await checkStorageQuota();
-      setStorageInfo(quota);
-
-    } catch (err) {
-      console.error('Download failed', err);
-      alert('Download failed. Please check network connection.');
-    } finally {
-      setIsDownloading(false);
-      setProgress(0);
-    }
-  };
-
-  const removeAudio = async () => {
-    await deleteAudioFile(audioKey);
-    setIsDownloaded(false);
-    onDownloadStateChange?.(false);
-    
-    const quota = await checkStorageQuota();
-    setStorageInfo(quota);
-  };
+  const { isDownloaded, isDownloading, progress, storageInfo, error, download, remove, clearError } = useEpisodeDownload({
+    audioKey,
+    sourceUrl: audioUrl,
+    onDownloadStateChange
+  });
 
   return (
     <Box sx={{ 
@@ -111,7 +51,7 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ audioUrl, audi
           color="error" 
           fullWidth 
           startIcon={<DeleteIcon />}
-          onClick={removeAudio}
+          onClick={remove}
         >
           Remove Download
         </Button>
@@ -121,11 +61,17 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ audioUrl, audi
           fullWidth 
           startIcon={<DownloadIcon />}
           sx={{ bgcolor: '#333', color: '#fff', '&:hover': { bgcolor: '#444' } }}
-          onClick={downloadAudio}
+          onClick={download}
         >
-          Download for Offline (89MB)
+          Download for Offline
         </Button>
       )}
+
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={clearError} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={clearError} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

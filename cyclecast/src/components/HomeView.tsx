@@ -5,7 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { SearchPodcasts } from './SearchPodcasts';
 import { getLibraryMetadata, removeEpisodeFromLibrary, deleteAudioFile, updateLibraryOrder } from '../utils/storage';
 import type { SavedEpisodeMetadata } from '../utils/storage';
-import { useAudio } from '../context/AudioContext';
+import { usePlayback } from '../hooks/usePlayback';
 import { 
   DndContext, 
   closestCenter, 
@@ -80,7 +80,7 @@ const SortableEpisodeRow: React.FC<SortableEpisodeRowProps> = ({ ep, isLast, onR
 
 export const HomeView: React.FC = () => {
   const [library, setLibrary] = useState<SavedEpisodeMetadata[]>([]);
-  const { loadEpisode } = useAudio();
+  const { loadEpisode } = usePlayback();
 
   // Require user to hold for 250ms with a small movement tolerance before a drag begins
   const sensors = useSensors(

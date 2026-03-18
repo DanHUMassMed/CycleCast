@@ -28,10 +28,12 @@ export const useWakeLock = () => {
     }
   }, [wakeLock]);
 
-  // Re-acquire lock if visibility changes (e.g. app comes back from background)
+  // Acquire initially and re-acquire if visibility changes
   useEffect(() => {
+    requestWakeLock();
+    
     const handleVisibilityChange = () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible') {
         requestWakeLock();
       }
     };
@@ -39,8 +41,9 @@ export const useWakeLock = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
     };
-  }, [wakeLock, requestWakeLock]);
+  }, [requestWakeLock, releaseWakeLock]);
 
   return { requestWakeLock, releaseWakeLock, isLocked: wakeLock !== null };
 };

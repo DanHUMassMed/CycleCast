@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Box, TextField, List, ListItem, ListItemAvatar, Avatar, ListItemText, Typography, CircularProgress, IconButton, Button } from '@mui/material';
+import { Box, TextField, List, ListItem, ListItemAvatar, Avatar, ListItemText, Typography, CircularProgress, IconButton, Button, Snackbar, Alert } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import OfflinePinIcon from '@mui/icons-material/OfflinePin';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useAudio } from '../context/AudioContext';
-import { saveAudioFile, deleteAudioFile, getAudioFile, addEpisodeToLibrary, removeEpisodeFromLibrary } from '../utils/storage';
+import { useSettings } from '../context/AudioContext';
+import { usePlayback } from '../hooks/usePlayback';
+import { useEpisodeDownload } from '../hooks/useEpisodeDownload';
 
 interface PodcastSearchResult {
   id: number;
@@ -24,51 +25,20 @@ interface Episode {
 
 
 const EpisodeRow: React.FC<{ ep: Episode, showData: PodcastSearchResult, handlePlayEpisode: (ep: Episode, show: PodcastSearchResult) => void }> = ({ ep, showData, handlePlayEpisode }) => {
-  const { backendUrl } = useAudio();
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  React.useEffect(() => {
-    getAudioFile(`podcast-${ep.id}`).then(blob => {
-      setIsDownloaded(!!blob);
-    });
-  }, [ep.id]);
-
-  const handleDownload = async () => {
-    try {
-      setIsDownloading(true);
-      // We don't want to use the proxy for downloads, just fetch directly here or proxy? 
-      // Proxy handles CORS. So use the proxy!
-      const proxyUrl = `${backendUrl}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
-      const req = await fetch(proxyUrl);
-      if (!req.ok) throw new Error("Fetch failed");
-      const blob = await req.blob();
-      await saveAudioFile(`podcast-${ep.id}`, blob);
-      
-      // Save rich metadata so we can display it offline in the Library tab
-      await addEpisodeToLibrary({
-        id: ep.id,
-        showId: showData.id,
-        showTitle: showData.title,
-        episodeTitle: ep.title,
-        artworkUrl: showData.image,
-        enclosureUrl: ep.enclosureUrl
-      });
-
-      setIsDownloaded(true);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to download episode");
-    } finally {
-      setIsDownloading(false);
+  const { backendUrl } = useSettings();
+  const proxyUrl = `${backendUrl}/stream?url=${encodeURIComponent(ep.enclosureUrl)}`;
+  const { isDownloaded, isDownloading, error, download, remove, clearError } = useEpisodeDownload({
+    audioKey: `podcast-${ep.id}`,
+    sourceUrl: proxyUrl,
+    metadata: {
+      id: ep.id,
+      showId: showData.id,
+      showTitle: showData.title,
+      episodeTitle: ep.title,
+      artworkUrl: showData.image,
+      enclosureUrl: ep.enclosureUrl
     }
-  };
-
-  const handleRemove = async () => {
-    await deleteAudioFile(`podcast-${ep.id}`);
-    await removeEpisodeFromLibrary(ep.id);
-    setIsDownloaded(false);
-  };
+  });
 
   return (
     <ListItem 
@@ -80,12 +50,12 @@ const EpisodeRow: React.FC<{ ep: Episode, showData: PodcastSearchResult, handleP
           ) : isDownloaded ? (
             <>
               <OfflinePinIcon fontSize="small" sx={{ color: '#1db954', mr: 1 }} />
-              <IconButton onClick={handleRemove} sx={{ color: '#f44336', mr: 1, '&:hover': { bgcolor: '#ffebee' } }}>
+              <IconButton onClick={remove} sx={{ color: '#f44336', mr: 1, '&:hover': { bgcolor: '#ffebee' } }}>
                 <DeleteIcon />
               </IconButton>
             </>
           ) : (
-            <IconButton onClick={handleDownload} sx={{ color: '#888', mr: 1, '&:hover': { color: '#fff' } }}>
+            <IconButton onClick={download} sx={{ color: '#888', mr: 1, '&:hover': { color: '#fff' } }}>
               <DownloadIcon />
             </IconButton>
           )}
@@ -99,6 +69,11 @@ const EpisodeRow: React.FC<{ ep: Episode, showData: PodcastSearchResult, handleP
       <ListItemText 
         primary={<Typography variant="body2" sx={{ color: '#fff', pr: 4 }}>{ep.title}</Typography>}
       />
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={clearError} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={clearError} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </ListItem>
   );
 };
@@ -111,8 +86,10 @@ export const SearchPodcasts: React.FC = () => {
   const [selectedShow, setSelectedShow] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { loadEpisode, backendUrl } = useAudio();
+  const { loadEpisode } = usePlayback();
+  const { backendUrl } = useSettings();
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -129,7 +106,7 @@ export const SearchPodcasts: React.FC = () => {
       }
     } catch (err) {
       console.error("Search failed", err);
-      alert("Search failed. Ensure the Python proxy is running.");
+      setError("Search failed. Ensure the Python proxy is running.");
     } finally {
       setLoading(false);
     }
@@ -148,6 +125,7 @@ export const SearchPodcasts: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to fetch episodes", err);
+      setError("Failed to fetch episodes.");
     } finally {
       setLoadingEpisodes(false);
     }
@@ -236,6 +214,12 @@ export const SearchPodcasts: React.FC = () => {
           </List>
         </Box>
       )}
+
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={() => setError(null)} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

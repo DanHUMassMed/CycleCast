@@ -8,7 +8,7 @@ import {
   Container,
   TextField,
 } from '@mui/material';
-import { useAudio } from '../context/AudioContext';
+import { useSettings } from '../context/AudioContext';
 
 const marks = [
   { value: 5, label: '5s' },
@@ -25,7 +25,7 @@ export const ConfigView: React.FC = () => {
     defaultPlaybackRate, updateDefaultPlaybackRate, 
     skipMode, updateSkipMode,
     backendUrl, updateBackendUrl
-  } = useAudio();
+  } = useSettings();
   
   const [tempUrl, setTempUrl] = useState(backendUrl);
   
@@ -112,6 +112,7 @@ export const ConfigView: React.FC = () => {
               { value: 1.0, label: '1x' },
               { value: 1.25, label: '1.25x' },
               { value: 1.5, label: '1.5x' },
+              { value: 1.75, label: '1.75x' },
               { value: 2.0, label: '2x' },
             ]}
             min={1.0}

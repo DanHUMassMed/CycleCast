@@ -6,11 +6,11 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { HomeView } from './components/HomeView';
 import { BikePlayView } from './components/BikePlayView';
 import { ConfigView } from './components/ConfigView';
-import { useAudio } from './context/AudioContext';
+import { usePlayback } from './hooks/usePlayback';
 
 const AppContent = () => {
   const [tabIndex, setTabIndex] = useState(0);
-  const { resetPlaybackRate, isPlaying } = useAudio();
+  const { resetPlaybackRate, isPlaying } = usePlayback();
 
   // Auto-navigate to Bike Mode if playback starts while on the Home screen
   useEffect(() => {

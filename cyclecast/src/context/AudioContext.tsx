@@ -1,27 +1,21 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { getAudioFile, getLibraryMetadata } from '../utils/storage';
+import { getLibraryMetadata } from '../utils/storage';
+import { PLAYBACK_RATES, DEFAULT_SKIP } from '../config/playerConfig';
+import type { SkipMode } from '../config/playerConfig';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import type { TrackMetadata } from '../hooks/useAudioPlayer';
+import { useMediaSession } from '../hooks/useMediaSession';
 
-const PLAYBACK_RATES = [1.0, 1.25, 1.5, 2.0];
-const DEFAULT_SKIP = { rewind: 15, forward: 30 };
-
-interface AudioContextType {
+interface PlaybackContextType {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
   activePlaybackRate: number;
-  defaultPlaybackRate: number;
-  skipIntervals: { rewind: number; forward: number };
-  skipMode: 'chapter' | 'podcast';
-  currentTrackMetadata: { id: number; url: string; title: string; showTitle: string; artworkUrl: string } | null;
-  backendUrl: string;
-  loadEpisode: (info: { id: number; url: string; title: string; showTitle: string; artworkUrl: string }) => void;
+  currentTrackMetadata: TrackMetadata | null;
+  loadEpisode: (info: TrackMetadata) => void;
   cyclePlaybackRate: () => void;
   resetPlaybackRate: () => void;
-  updateDefaultPlaybackRate: (rate: number) => void;
-  updateSkipIntervals: (rewind: number, forward: number) => void;
-  updateSkipMode: (mode: 'chapter' | 'podcast') => void;
-  updateBackendUrl: (url: string) => void;
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
@@ -30,21 +24,27 @@ interface AudioContextType {
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
-const AudioContext = createContext<AudioContextType | null>(null);
+interface SettingsContextType {
+  defaultPlaybackRate: number;
+  skipIntervals: { rewind: number; forward: number };
+  skipMode: SkipMode;
+  backendUrl: string;
+  updateDefaultPlaybackRate: (rate: number) => void;
+  updateSkipIntervals: (rewind: number, forward: number) => void;
+  updateSkipMode: (mode: SkipMode) => void;
+  updateBackendUrl: (url: string) => void;
+}
 
-export const useAudio = () => {
-  const context = useContext(AudioContext);
-  if (!context) throw new Error('useAudio must be used within AudioProvider');
+export const PlaybackContext = createContext<PlaybackContextType | null>(null);
+export const SettingsContext = createContext<SettingsContextType | null>(null);
+
+export const useSettings = () => {
+  const context = useContext(SettingsContext);
+  if (!context) throw new Error('useSettings must be used within AudioProvider');
   return context;
 };
 
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [currentTrackMetadata, setCurrentTrackMetadata] = useState<{ id: number; url: string; title: string; showTitle: string; artworkUrl: string } | null>(null);
-  const currentObjectURLRef = useRef<string | null>(null);
 
   // Settings state persisted via localStorage
   const [defaultPlaybackRate, setDefaultPlaybackRate] = useState<number>(() => {
@@ -60,150 +60,36 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return saved ? JSON.parse(saved) : DEFAULT_SKIP;
   });
 
-  const [skipMode, setSkipMode] = useState<'chapter' | 'podcast'>(() => {
+  const [skipMode, setSkipMode] = useState<SkipMode>(() => {
     const saved = localStorage.getItem('cyclecast_skip_mode');
-    return (saved as 'chapter' | 'podcast') || 'podcast';
+    return (saved as SkipMode) || 'podcast';
   });
 
   const [backendUrl, setBackendUrl] = useState<string>(() => {
-    return localStorage.getItem('cyclecast_backend_url') || 'https://api.cyclecast.higginscompany.com/api';
+    return localStorage.getItem('cyclecast_backend_url') || import.meta.env.VITE_BACKEND_URL || 'https://api.cyclecast.higginscompany.com/api';
   });
 
-  useEffect(() => {
-    let audio: HTMLAudioElement | null = null;
-
-    const initAudio = async () => {
-      audio = new Audio();
-      audioRef.current = audio;
-
-      audio.preload = 'metadata';
-
-      const handleTimeUpdate = () => setCurrentTime(audio!.currentTime);
-      const handleDurationChange = () => setDuration(audio!.duration);
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
-
-      audio.addEventListener('timeupdate', handleTimeUpdate);
-      audio.addEventListener('durationchange', handleDurationChange);
-      audio.addEventListener('play', handlePlay);
-      audio.addEventListener('pause', handlePause);
-
-      audio.playbackRate = activePlaybackRate;
-
-      // Handle iOS Media Session
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'Phase 1 POC',
-          artist: 'CycleCast',
-          artwork: [
-            { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
-          ]
-        });
-
-        navigator.mediaSession.setActionHandler('play', () => audio!.play());
-        navigator.mediaSession.setActionHandler('pause', () => audio!.pause());
-        navigator.mediaSession.setActionHandler('previoustrack', () => seek(Math.max(0, audio!.currentTime - skipIntervals.rewind)));
-        navigator.mediaSession.setActionHandler('nexttrack', () => seek(audio!.currentTime + skipIntervals.forward));
-      }
-    };
-
-    initAudio();
-
-    return () => {
-      if (audio) {
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
-      }
-    };
-  }, []); // Note: leaving deps empty intentionally to mimic singleton audio init on mount
-
-  // Update Media Session position state periodically
-  useEffect(() => {
-    if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && !isNaN(duration) && duration > 0) {
-      navigator.mediaSession.setPositionState({
-        duration: duration,
-        playbackRate: audioRef.current?.playbackRate || 1,
-        position: currentTime
-      });
-    }
-  }, [currentTime, duration]);
-
-  const loadEpisode = useCallback(async (info: { id: number; url: string; title: string; showTitle: string; artworkUrl: string }) => {
-    setCurrentTrackMetadata({
-      id: info.id,
-      url: info.url,
-      title: info.title,
-      showTitle: info.showTitle,
-      artworkUrl: info.artworkUrl
-    });
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-
-      if (currentObjectURLRef.current) {
-        URL.revokeObjectURL(currentObjectURLRef.current);
-        currentObjectURLRef.current = null;
-      }
-
-      // Check if we have downloaded this in IndexedDB
-      const localBlob = await getAudioFile(`podcast-${info.id}`);
-      let sourceUrl = info.url;
-
-      if (localBlob) {
-        console.log(`AudioContext: Found local blob for podcast-${info.id}. Skipping network stream.`);
-        sourceUrl = URL.createObjectURL(localBlob);
-        currentObjectURLRef.current = sourceUrl;
-      }
-
-      audioRef.current.src = sourceUrl;
-      audioRef.current.load();
-      try {
-        await audioRef.current.play();
-      } catch (err) {
-        console.error("Autoplay failed on loadEpisode", err);
-      }
-    }
-
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: info.title,
-        artist: info.showTitle,
-        artwork: [
-          { src: info.artworkUrl, sizes: '512x512', type: 'image/jpeg' } // PodcastIndex mostly returns jpegs
-        ]
-      });
-    }
-  }, []);
-
-  const play = () => audioRef.current?.play();
-  const pause = () => audioRef.current?.pause();
-  
-  const seek = (time: number) => {
-    if (audioRef.current) {
-      let safeTime = Math.max(0, time);
-      if (duration) safeTime = Math.min(safeTime, duration);
-      audioRef.current.currentTime = safeTime;
-    }
-  };
+  const {
+    audioRef,
+    isPlaying,
+    currentTime,
+    duration,
+    currentTrackMetadata,
+    loadEpisode,
+    play,
+    pause,
+    seek,
+  } = useAudioPlayer(activePlaybackRate);
 
   const cyclePlaybackRate = useCallback(() => {
     setActivePlaybackRate(prev => {
       const currentIndex = PLAYBACK_RATES.indexOf(prev);
-      const nextRate = PLAYBACK_RATES[(currentIndex + 1) % PLAYBACK_RATES.length];
-      
-      if (audioRef.current) {
-        audioRef.current.playbackRate = nextRate;
-      }
-      return nextRate;
+      return PLAYBACK_RATES[(currentIndex + 1) % PLAYBACK_RATES.length];
     });
   }, []);
 
   const resetPlaybackRate = useCallback(() => {
     setActivePlaybackRate(defaultPlaybackRate);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = defaultPlaybackRate;
-    }
   }, [defaultPlaybackRate]);
 
   const updateDefaultPlaybackRate = useCallback((rate: number) => {
@@ -213,7 +99,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // Also update active rate if it matches the old default (meaning user hasn't overriden it in BikePlay yet)
     setActivePlaybackRate(prevActive => {
       if (prevActive === defaultPlaybackRate) {
-        if (audioRef.current) audioRef.current.playbackRate = rate;
         return rate;
       }
       return prevActive;
@@ -226,7 +111,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.setItem('cyclecast_skips', JSON.stringify(newSkips));
   }, []);
 
-  const updateSkipMode = useCallback((mode: 'chapter' | 'podcast') => {
+  const updateSkipMode = useCallback((mode: SkipMode) => {
     setSkipMode(mode);
     localStorage.setItem('cyclecast_skip_mode', mode);
   }, []);
@@ -287,22 +172,38 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         artworkUrl: nextEp.artworkUrl
       });
     } else {
-      // Stub for chapter skip - skip forwards 5 minutes for now
-      seek(currentTime + 300);
+      seek(currentTime + skipIntervals.forward);
     }
-  }, [skipMode, currentTime, duration, currentTrackMetadata, loadEpisode]);
+  }, [skipMode, currentTime, duration, currentTrackMetadata, loadEpisode, skipIntervals.forward, seek]);
+
+  useMediaSession({
+    duration,
+    currentTime,
+    playbackRate: activePlaybackRate,
+    metadata: currentTrackMetadata,
+    onPlay: play,
+    onPause: pause,
+    onSeek: seek,
+    onNext: skipToNext,
+    onPrev: skipToPrevious
+  });
+
+  const settingsValue: SettingsContextType = {
+    defaultPlaybackRate, skipIntervals, skipMode, backendUrl,
+    updateDefaultPlaybackRate, updateSkipIntervals, updateSkipMode, updateBackendUrl
+  };
+
+  const playbackValue: PlaybackContextType = {
+    isPlaying, currentTime, duration, activePlaybackRate, currentTrackMetadata,
+    loadEpisode, cyclePlaybackRate, resetPlaybackRate, play, pause, seek,
+    skipToNext, skipToPrevious, audioRef 
+  };
 
   return (
-    <AudioContext.Provider value={{
-      isPlaying, currentTime, duration, 
-      activePlaybackRate, defaultPlaybackRate, skipIntervals, skipMode,
-      backendUrl,
-      currentTrackMetadata, loadEpisode, updateBackendUrl,
-      cyclePlaybackRate, resetPlaybackRate, updateDefaultPlaybackRate, 
-      updateSkipIntervals, updateSkipMode, play, pause, seek,
-      skipToNext, skipToPrevious, audioRef 
-    }}>
-      {children}
-    </AudioContext.Provider>
+    <SettingsContext.Provider value={settingsValue}>
+      <PlaybackContext.Provider value={playbackValue}>
+        {children}
+      </PlaybackContext.Provider>
+    </SettingsContext.Provider>
   );
 };
