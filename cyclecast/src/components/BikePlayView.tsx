@@ -21,12 +21,12 @@ export const BikePlayView: React.FC<BikePlayViewProps> = ({ onExitBikePlay }) =>
     isPlaying, currentTime, duration, activePlaybackRate,
     play, pause, seek, cyclePlaybackRate, currentTrackMetadata, skipToNext, skipToPrevious 
   } = usePlayback();
-  const { skipIntervals, skipMode } = useSettings();
+  const { skipIntervals, skipMode, screenLockEnabled } = useSettings();
   
   const [flashZone, setFlashZone] = React.useState<string | null>(null);
   
   // Enforce WakeLock when this view is mounted
-  useWakeLock();
+  useWakeLock(screenLockEnabled);
 
   const handleFeedback = (zone: string) => {
     // Attempt physical vibration if supported

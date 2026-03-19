@@ -16,13 +16,20 @@ export const useAudioPlayer = (activePlaybackRate: number) => {
   const [duration, setDuration] = useState(0);
   const [currentTrackMetadata, setCurrentTrackMetadata] = useState<TrackMetadata | null>(null);
   const currentObjectURLRef = useRef<string | null>(null);
+  const lastReportedTimeRef = useRef(0);
 
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
     audio.preload = 'metadata';
 
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleTimeUpdate = () => {
+      const now = audio.currentTime;
+      if (Math.abs(now - lastReportedTimeRef.current) >= 1) {
+        lastReportedTimeRef.current = now;
+        setCurrentTime(now);
+      }
+    };
     const handleDurationChange = () => setDuration(audio.duration);
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
@@ -40,6 +47,10 @@ export const useAudioPlayer = (activePlaybackRate: number) => {
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
+      if (currentObjectURLRef.current) {
+        URL.revokeObjectURL(currentObjectURLRef.current);
+        currentObjectURLRef.current = null;
+      }
     };
   }, []);
 

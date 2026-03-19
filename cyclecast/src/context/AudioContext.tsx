@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { getLibraryMetadata } from '../utils/storage';
 import { PLAYBACK_RATES, DEFAULT_SKIP } from '../config/playerConfig';
@@ -29,10 +29,12 @@ interface SettingsContextType {
   skipIntervals: { rewind: number; forward: number };
   skipMode: SkipMode;
   backendUrl: string;
+  screenLockEnabled: boolean;
   updateDefaultPlaybackRate: (rate: number) => void;
   updateSkipIntervals: (rewind: number, forward: number) => void;
   updateSkipMode: (mode: SkipMode) => void;
   updateBackendUrl: (url: string) => void;
+  updateScreenLockEnabled: (enabled: boolean) => void;
 }
 
 export const PlaybackContext = createContext<PlaybackContextType | null>(null);
@@ -67,6 +69,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const [backendUrl, setBackendUrl] = useState<string>(() => {
     return localStorage.getItem('cyclecast_backend_url') || import.meta.env.VITE_BACKEND_URL || 'https://api.cyclecast.higginscompany.com/api';
+  });
+
+  const [screenLockEnabled, setScreenLockEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('cyclecast_screen_lock');
+    return saved !== null ? saved === 'true' : true;
   });
 
   const {
@@ -121,6 +128,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.setItem('cyclecast_backend_url', url);
   }, []);
 
+  const updateScreenLockEnabled = useCallback((enabled: boolean) => {
+    setScreenLockEnabled(enabled);
+    localStorage.setItem('cyclecast_screen_lock', String(enabled));
+  }, []);
+
   const skipToPrevious = useCallback(async () => {
     if (skipMode === 'podcast') {
       const library = await getLibraryMetadata();
@@ -145,9 +157,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       });
     } else {
       // Stub for chapter skip - skip backwards 5 minutes for now
-      seek(currentTime - 300);
+      const now = audioRef.current?.currentTime ?? 0;
+      seek(now - 300);
     }
-  }, [skipMode, currentTime, duration, currentTrackMetadata, loadEpisode]);
+  }, [skipMode, currentTrackMetadata, loadEpisode, seek, audioRef]);
 
   const skipToNext = useCallback(async () => {
     if (skipMode === 'podcast') {
@@ -172,9 +185,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         artworkUrl: nextEp.artworkUrl
       });
     } else {
-      seek(currentTime + skipIntervals.forward);
+      const now = audioRef.current?.currentTime ?? 0;
+      seek(now + skipIntervals.forward);
     }
-  }, [skipMode, currentTime, duration, currentTrackMetadata, loadEpisode, skipIntervals.forward, seek]);
+  }, [skipMode, currentTrackMetadata, loadEpisode, skipIntervals.forward, seek, audioRef]);
 
   useMediaSession({
     duration,
@@ -188,16 +202,19 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     onPrev: skipToPrevious
   });
 
-  const settingsValue: SettingsContextType = {
-    defaultPlaybackRate, skipIntervals, skipMode, backendUrl,
-    updateDefaultPlaybackRate, updateSkipIntervals, updateSkipMode, updateBackendUrl
-  };
+  const settingsValue = useMemo<SettingsContextType>(() => ({
+    defaultPlaybackRate, skipIntervals, skipMode, backendUrl, screenLockEnabled,
+    updateDefaultPlaybackRate, updateSkipIntervals, updateSkipMode, updateBackendUrl, updateScreenLockEnabled
+  }), [defaultPlaybackRate, skipIntervals, skipMode, backendUrl, screenLockEnabled, 
+       updateDefaultPlaybackRate, updateSkipIntervals, updateSkipMode, updateBackendUrl, updateScreenLockEnabled]);
 
-  const playbackValue: PlaybackContextType = {
+  const playbackValue = useMemo<PlaybackContextType>(() => ({
     isPlaying, currentTime, duration, activePlaybackRate, currentTrackMetadata,
     loadEpisode, cyclePlaybackRate, resetPlaybackRate, play, pause, seek,
     skipToNext, skipToPrevious, audioRef 
-  };
+  }), [isPlaying, currentTime, duration, activePlaybackRate, currentTrackMetadata,
+       loadEpisode, cyclePlaybackRate, resetPlaybackRate, play, pause, seek,
+       skipToNext, skipToPrevious, audioRef]);
 
   return (
     <SettingsContext.Provider value={settingsValue}>

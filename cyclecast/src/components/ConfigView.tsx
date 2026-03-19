@@ -11,6 +11,8 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { useSettings } from '../context/AudioContext';
@@ -30,7 +32,8 @@ export const ConfigView: React.FC = () => {
     skipIntervals, updateSkipIntervals, 
     defaultPlaybackRate, updateDefaultPlaybackRate, 
     skipMode, updateSkipMode,
-    backendUrl, updateBackendUrl
+    backendUrl, updateBackendUrl,
+    screenLockEnabled, updateScreenLockEnabled
   } = useSettings();
   const { checking, message, messageType, checkForUpdates, clearMessage } = useVersionCheck();
   const currentVersion = localStorage.getItem('cyclecast_app_version') || '—';
@@ -152,6 +155,31 @@ export const ConfigView: React.FC = () => {
             <ToggleButton value="chapter">Chapter (5m)</ToggleButton>
           </ToggleButtonGroup>
         </Box>
+
+        <Box sx={{ pt: 3, mt: 3, borderTop: '1px solid #333' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={screenLockEnabled}
+                onChange={(e) => updateScreenLockEnabled(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#1db954' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#1db954' },
+                }}
+              />
+            }
+            label={
+              <Box>
+                <Typography sx={{ color: '#fff' }}>Keep Screen On</Typography>
+                <Typography variant="caption" sx={{ color: '#888' }}>
+                  Prevents the screen from dimming during Bike Mode. Disable to save battery.
+                </Typography>
+              </Box>
+            }
+            sx={{ alignItems: 'flex-start', ml: 0 }}
+          />
+        </Box>
+
         <Box sx={{ pt: 3, mt: 3, borderTop: '1px solid #333' }}>
           <Typography gutterBottom sx={{ color: '#fff' }}>
             Backend API URL

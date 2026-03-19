@@ -1,17 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
-export const useWakeLock = () => {
-  const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
+export const useWakeLock = (enabled: boolean = true) => {
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
 
   const requestWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) return;
     try {
       if ('wakeLock' in navigator) {
         const lock = await navigator.wakeLock.request('screen');
-        setWakeLock(lock);
+        wakeLockRef.current = lock;
+        setIsLocked(true);
         
         lock.addEventListener('release', () => {
           console.log('Wake Lock was released');
-          setWakeLock(null);
+          wakeLockRef.current = null;
+          setIsLocked(false);
         });
         
         console.log('Wake Lock acquired');
@@ -22,14 +26,17 @@ export const useWakeLock = () => {
   }, []);
 
   const releaseWakeLock = useCallback(async () => {
-    if (wakeLock !== null) {
-      await wakeLock.release();
-      setWakeLock(null);
+    if (wakeLockRef.current) {
+      await wakeLockRef.current.release();
     }
-  }, [wakeLock]);
+  }, []);
 
-  // Acquire initially and re-acquire if visibility changes
   useEffect(() => {
+    if (!enabled) {
+      releaseWakeLock();
+      return;
+    }
+
     requestWakeLock();
     
     const handleVisibilityChange = () => {
@@ -43,7 +50,7 @@ export const useWakeLock = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
-  }, [requestWakeLock, releaseWakeLock]);
+  }, [enabled, requestWakeLock, releaseWakeLock]);
 
-  return { requestWakeLock, releaseWakeLock, isLocked: wakeLock !== null };
+  return { requestWakeLock, releaseWakeLock, isLocked };
 };
